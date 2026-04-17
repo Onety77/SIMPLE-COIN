@@ -530,7 +530,7 @@ export default function App() {
         </div>
 
         <div style={{ marginTop: mobile ? 32 : 40, fontFamily: "'DM Mono',monospace", fontSize: 9, letterSpacing: "0.15em", color: "#ddd", textAlign: "center" }}>
-          Updates every 60s · Powered by SolanaTracker
+          Updates every 60s
         </div>
       </section>
 

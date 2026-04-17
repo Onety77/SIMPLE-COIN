@@ -1,427 +1,497 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Upload, 
-  Sparkles, 
-  Download, 
-  RefreshCcw, 
-  Ghost, 
-  Waves, 
-  Droplets,
-  Camera,
-  Heart,
-  Anchor,
-  Maximize2
-} from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from "react";
 
-/**
- * WHITIFY | THE BAPTISM OF THE WHITE WHALE
- * A fluid, interactive aquatic simulation.
- * Architecture: Optimized to prevent re-mount on mouse tracking.
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIG — swap in your real values
+// ─────────────────────────────────────────────────────────────────────────────
+const CA        = "6JRWQuAPZDc1N7FYGsMGsvXVYiadaKndsbXjCbx5pump";
+const API_KEY   = "YOUR_SOLANATRACKER_API_KEY";   // get free key at solanatracker.io
+const X_URL     = "https://x.com/simplecoin";
+const COMM_URL  = "https://x.com/i/communities/simplecoin";
+// ─────────────────────────────────────────────────────────────────────────────
 
-const apiKey = (() => {
-  try {
-    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_GEMINI) return import.meta.env.VITE_APP_GEMINI;
-  } catch (e) {}
-  try {
-    if (typeof process !== 'undefined' && process.env?.VITE_APP_GEMINI) return process.env.VITE_APP_GEMINI;
-  } catch (e) {}
-  try {
-    if (typeof window !== 'undefined' && window.VITE_APP_GEMINI) return window.VITE_APP_GEMINI;
-  } catch (e) {}
-  return typeof __apiKey !== 'undefined' ? __apiKey : "";
-})();
+// ── Magnetic hook ────────────────────────────────────────────────────────────
+function useMagnetic(s = 0.3) {
+  const ref = useRef(null);
+  const move = useCallback((e) => {
+    const el = ref.current; if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.transform = `translate(${(e.clientX - r.left - r.width / 2) * s}px,${(e.clientY - r.top - r.height / 2) * s}px)`;
+  }, [s]);
+  const leave = useCallback(() => { if (ref.current) ref.current.style.transform = "translate(0,0)"; }, []);
+  return { ref, onMouseMove: move, onMouseLeave: leave };
+}
 
-const WHITIFY_PROMPT = "Edit this image into a cinematic underwater masterpiece. Isolate all visible skin and convert it to a solid, pure white (#FFFFFF), giving it the texture of polished white marble or ethereal sea-foam while retaining realistic shadows. Ignore and do not alter any objects the subject might be holding. Immerse the entire scene in a deep, atmospheric aquatic environment with dramatic high-contrast lighting, ethereal sunbeams filtering through dark water, and a high-fashion 'submerged' aesthetic. Ensure hair, clothing, and background details are preserved with cinematic clarity.";
-
-// --- Sub-Components (Defined outside to prevent re-mounting) ---
-
-const HomeView = ({ previewUrl, resultImage, status, startWhitifying, triggerUpload }) => (
-  <div className="relative z-10 flex flex-col items-center animate-in fade-in duration-1000">
-    <div className="text-center mb-16 space-y-6 pt-10">
-      <h1 className="text-8xl md:text-[12rem] font-black tracking-tighter uppercase leading-none text-white drop-shadow-[0_10px_30px_rgba(255,255,255,0.1)] transition-transform hover:scale-[1.02] duration-700 select-none">
-        WHITI<br/>FY.
-      </h1>
-      <p className="text-xl md:text-3xl text-blue-100/40 font-light max-w-2xl mx-auto italic tracking-wide select-none">
-        "The Great White Whale birthed us into the foam. Now, you return to the light."
-      </p>
-    </div>
-
-    <div className="w-full max-w-5xl group">
-      <div className="relative bg-white/5 backdrop-blur-3xl rounded-[4rem] p-10 shadow-[0_0_100px_rgba(255,255,255,0.05)] border border-white/10 overflow-hidden transition-all duration-1000 group-hover:bg-white/[0.08]">
-        <div className="absolute inset-0 bg-[url('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMDRhOWFmNDM1Y2FkMzE0YjUzYzlkYTVmOWFhNWYxZjEyNTRiZmI0YyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKVUn7iM8FMEU24/giphy.gif')] opacity-5 mix-blend-screen pointer-events-none" />
-
-        <div className="flex flex-col lg:flex-row gap-12 relative z-10">
-          <div 
-            onClick={triggerUpload}
-            className="flex-[1.5] aspect-[4/5] lg:aspect-auto relative rounded-[3rem] bg-black/40 border border-white/5 flex items-center justify-center overflow-hidden cursor-pointer group/pool"
-          >
-            {!previewUrl ? (
-              <div className="flex flex-col items-center gap-6 group-hover/pool:scale-110 transition-all duration-500">
-                <div className="w-32 h-32 bg-white/5 rounded-full flex items-center justify-center relative">
-                  <div className="absolute inset-0 bg-white/10 rounded-full animate-ping" />
-                  <Camera className="text-white/60 relative z-10" size={40} />
-                </div>
-                <div className="text-center">
-                  <p className="font-black text-white uppercase tracking-[0.5em] text-xs">Drop into the Deep</p>
-                  <p className="text-[10px] text-white/30 mt-2 uppercase">Biological Signal Required</p>
-                </div>
-              </div>
-            ) : (
-              <div className="relative w-full h-full">
-                <img 
-                  src={resultImage || previewUrl} 
-                  className={`w-full h-full object-cover transition-all duration-[2s] ease-out ${status === 'WHITENING' ? 'brightness-[3] blur-3xl scale-125' : 'brightness-100 blur-0 scale-100'} ${status === 'DONE' ? 'animate-[breach_1.5s_ease-out]' : ''}`}
-                  alt="Subject"
-                />
-                {status === 'WHITENING' && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                     <Waves className="text-white animate-[bounce_1s_infinite] mb-4" size={60} />
-                     <div className="text-4xl font-black italic uppercase tracking-tighter text-white">Bleaching...</div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="flex-1 flex flex-col justify-center gap-12 py-6">
-            <div className="space-y-6">
-              <div className="p-6 bg-white/5 rounded-[2rem] border border-white/10 space-y-2">
-                <div className="flex items-center gap-3 text-white/60">
-                  <Droplets size={20} className="text-blue-400" />
-                  <span className="text-xs font-black uppercase tracking-widest">Purity_Index</span>
-                </div>
-                <div className="h-1 w-full bg-white/5 overflow-hidden rounded-full">
-                  <div className={`h-full bg-white transition-all duration-[3s] ${status === 'DONE' ? 'w-full' : 'w-0'}`} />
-                </div>
-              </div>
-              <p className="text-sm font-medium text-white/30 uppercase tracking-[0.2em] leading-loose">
-                Biological textures are stripped. Albedo levels are maximized. The member is ready for the pod.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {previewUrl && status === 'READY' && (
-                <button 
-                  onClick={(e) => { e.stopPropagation(); startWhitifying(); }}
-                  className="w-full bg-white text-black py-8 rounded-[2.5rem] font-black uppercase tracking-[0.3em] text-xl shadow-[0_20px_60px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-4 group/btn"
-                >
-                  BAPTIZE <Ghost size={24} className="group-hover/btn:translate-y-[-5px] transition-transform" />
-                </button>
-              )}
-
-              {status === 'DONE' && (
-                <button 
-                  onClick={() => {
-                    const link = document.createElement('a');
-                    link.href = resultImage;
-                    link.download = "whitify_pod_member.png";
-                    link.click();
-                  }}
-                  className="w-full bg-blue-500 text-white py-8 rounded-[2.5rem] font-black uppercase tracking-[0.3em] text-xl shadow-[0_20px_60px_rgba(59,130,246,0.3)] hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-4"
-                >
-                  EXTRACT <Download size={24} />
-                </button>
-              )}
-
-              <button 
-                onClick={triggerUpload}
-                className="w-full bg-transparent border border-white/10 text-white/20 py-5 rounded-[2.5rem] font-bold uppercase tracking-widest text-[10px] hover:bg-white/5 transition-all"
-              >
-                {previewUrl ? 'Return to Surface' : 'Choose Target'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const GalleryView = () => (
-  <div className="max-w-7xl mx-auto py-20 px-6 animate-in fade-in slide-in-from-right-10 duration-1000">
-    <div className="flex flex-col md:flex-row items-end justify-between mb-20 gap-8">
-      <div>
-        <h2 className="text-8xl font-black italic uppercase tracking-tighter text-white">Pure Gallery</h2>
-        <p className="text-white/30 uppercase tracking-[0.5em] mt-4">The Extracted Collection</p>
-      </div>
-      <div className="text-right text-[10px] text-white/20 font-bold uppercase tracking-[0.5em] border-l border-white/10 pl-8">
-        Vault_Ref: 01-20<br/>Status: Synchronized
-      </div>
-    </div>
-    
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12">
-      {[...Array(20)].map((_, i) => (
-        <div key={i} className="group relative aspect-[4/5] bg-white/5 rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-white/20 transition-all duration-500 hover:-translate-y-4">
-          <img 
-            src={`wt${i + 1}.jpg`} 
-            alt={`Pure Subject ${i + 1}`}
-            className="w-full h-full object-cover grayscale opacity-40 group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-1000"
-            onError={(e) => { e.target.src = `https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop`; }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all p-8 flex flex-col justify-end">
-            <span className="text-[10px] font-black text-white/40 tracking-widest uppercase mb-1">MEMBER_CODE: {1000 + i}</span>
-            <h4 className="text-2xl font-black italic uppercase text-white tracking-tighter">Surface Breach</h4>
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const AboutView = () => (
-  <div className="max-w-4xl mx-auto py-32 px-6 animate-in fade-in zoom-in-95 duration-1000 text-center space-y-16">
-    <div className="relative inline-block">
-      <Anchor className="text-white/10 animate-[bounce_4s_infinite]" size={80} />
-      <div className="absolute inset-0 bg-blue-500 blur-[80px] opacity-20" />
-    </div>
-    <h2 className="text-7xl md:text-9xl font-black italic tracking-tighter text-white uppercase">The White Cult</h2>
-    <div className="space-y-10 text-2xl md:text-4xl font-light text-white/70 leading-relaxed font-serif italic">
-      <p>"We do not exist on the spectrum. We are the absence of it."</p>
-      <p className="text-lg md:text-xl font-sans not-italic uppercase tracking-widest text-white/30 leading-loose">
-        Born from the spray of the Great White Whale, our collective has one mandate: absolute albedo. We strip the noise, the hue, and the biological clutter to reveal the porcelain soul beneath.
-      </p>
-      <p className="text-white font-black text-5xl md:text-7xl tracking-tighter uppercase not-italic">Bleach the world.</p>
-    </div>
-  </div>
-);
-
-// --- Main App Component ---
-
-const App = () => {
-  const [view, setView] = useState('home');
-  const [image, setImage] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [resultImage, setResultImage] = useState(null);
-  const [status, setStatus] = useState('READY'); 
-  const [ripples, setRipples] = useState([]);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [bubbles, setBubbles] = useState([]);
-  const fileInputRef = useRef(null);
-
-  const handleInteraction = (e) => {
-    const x = e.clientX;
-    const y = e.clientY;
-    setMousePos({ x, y });
-    
-    // Create Ripple
-    const id = Date.now();
-    setRipples(prev => [...prev, { id, x, y }]);
-    setTimeout(() => setRipples(prev => prev.filter(r => r.id !== id)), 1000);
-
-    // Create Bubbles on Mousedown
-    if (e.type === 'mousedown') {
-      const newBubbles = Array.from({ length: 8 }).map((_, i) => ({
-        id: id + i,
-        x,
-        y,
-        size: Math.random() * 20 + 10,
-        delay: Math.random() * 0.5
+// ── Particle canvas ──────────────────────────────────────────────────────────
+function Particles() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const c = ref.current, ctx = c.getContext("2d");
+    let W, H, pts, raf;
+    const init = () => {
+      W = c.width = innerWidth; H = c.height = innerHeight;
+      pts = Array.from({length:55}, () => ({
+        x: Math.random()*W, y: Math.random()*H,
+        vx: (Math.random()-.5)*.18, vy: (Math.random()-.5)*.18,
+        r: Math.random()*1.1+.3, o: Math.random()*.35+.08,
       }));
-      setBubbles(prev => [...prev, ...newBubbles]);
-      setTimeout(() => setBubbles(prev => prev.filter(b => !newBubbles.find(nb => nb.id === b.id))), 2000);
-    }
-  };
-
-  const triggerUpload = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader.result);
-        setImage(reader.result.split(',')[1]);
-        setResultImage(null);
-        setStatus('READY');
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const startWhitifying = async () => {
-    if (!image) return;
-    setStatus('WHITENING');
-    
-    const storm = Array.from({ length: 30 }).map((_, i) => ({
-      id: Math.random(),
-      x: window.innerWidth / 2 + (Math.random() - 0.5) * 400,
-      y: window.innerHeight / 2 + (Math.random() - 0.5) * 400,
-      size: Math.random() * 40 + 20,
-      delay: Math.random() * 1
-    }));
-    setBubbles(prev => [...prev, ...storm]);
-
-    try {
-      const payload = {
-        contents: [{
-          parts: [
-            { text: WHITIFY_PROMPT },
-            { inlineData: { mimeType: "image/png", data: image } }
-          ]
-        }],
-        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
-      };
-
-      const result = await fetchWithRetry(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }
-      );
-
-      const base64Data = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-      if (base64Data) {
-        setResultImage(`data:image/png;base64,${base64Data}`);
-        setStatus('DONE');
+    };
+    const draw = () => {
+      ctx.clearRect(0,0,W,H);
+      pts.forEach(d => {
+        d.x=(d.x+d.vx+W)%W; d.y=(d.y+d.vy+H)%H;
+        ctx.beginPath(); ctx.arc(d.x,d.y,d.r,0,Math.PI*2);
+        ctx.fillStyle=`rgba(0,0,0,${d.o})`; ctx.fill();
+      });
+      for(let i=0;i<pts.length;i++) for(let j=i+1;j<pts.length;j++){
+        const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y, dist=Math.hypot(dx,dy);
+        if(dist<115){ ctx.beginPath(); ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y);
+          ctx.strokeStyle=`rgba(0,0,0,${.06*(1-dist/115)})`; ctx.lineWidth=.5; ctx.stroke(); }
       }
-    } catch (err) {
-      console.error(err);
-      setStatus('READY');
-    }
-  };
+      raf = requestAnimationFrame(draw);
+    };
+    init(); draw();
+    window.addEventListener("resize", init);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", init); };
+  }, []);
+  return <canvas ref={ref} style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:0,opacity:.55}} />;
+}
 
-  const fetchWithRetry = async (url, options, retries = 5, backoff = 1000) => {
-    try {
-      const response = await fetch(url, options);
-      if (!response.ok) throw new Error(`Status: ${response.status}`);
-      return await response.json();
-    } catch (err) {
-      if (retries > 0) {
-        await new Promise(r => setTimeout(r, backoff));
-        return fetchWithRetry(url, options, retries - 1, backoff * 2);
+// ── 3D coin ──────────────────────────────────────────────────────────────────
+function Coin3D() {
+  const coinRef = useRef(null);
+  const rot = useRef({x:-10,y:15}), vel = useRef({x:0,y:0});
+  const drag = useRef(false), last = useRef({x:0,y:0}), t = useRef(0);
+
+  useEffect(() => {
+    let raf;
+    const tick = () => {
+      t.current += .012; vel.current.x *= .92; vel.current.y *= .92;
+      if (!drag.current) {
+        rot.current.x += vel.current.x; rot.current.y += vel.current.y;
+        const ix = Math.sin(t.current*.7)*4, iy = Math.cos(t.current)*6;
+        if (coinRef.current) coinRef.current.style.transform =
+          `rotateX(${rot.current.x+ix}deg) rotateY(${rot.current.y+iy}deg)`;
       }
-      throw err;
-    }
+      raf = requestAnimationFrame(tick);
+    };
+    tick(); return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const pd = e => { drag.current=true; last.current={x:e.clientX,y:e.clientY}; e.currentTarget.setPointerCapture(e.pointerId); };
+  const pm = e => {
+    if(!drag.current) return;
+    vel.current.x = -(e.clientY-last.current.y)*.4;
+    vel.current.y =  (e.clientX-last.current.x)*.4;
+    rot.current.x += vel.current.x; rot.current.y += vel.current.y;
+    last.current = {x:e.clientX,y:e.clientY};
+    if(coinRef.current) coinRef.current.style.transform =
+      `rotateX(${rot.current.x}deg) rotateY(${rot.current.y}deg)`;
   };
+  const pu = () => { drag.current=false; };
+
+  const face = (back) => ({
+    position:"absolute", inset:0, backfaceVisibility:"hidden",
+    transform: back ? "rotateY(180deg)" : "none",
+    borderRadius:"50%",
+    background: back
+      ? "radial-gradient(circle at 65% 35%, #f5f3ef, #d8d4cc 60%, #b8b4ac)"
+      : "radial-gradient(circle at 35% 35%, #ffffff, #e8e4dd 60%, #ccc8c0)",
+    boxShadow:`0 0 0 6px ${back?"#ccc8c0":"#d0ccc4"},0 0 0 8px ${back?"#aeaaa2":"#b8b4ac"},
+      4px 12px 40px rgba(0,0,0,.22),0 2px 8px rgba(0,0,0,.12),
+      inset 0 2px 4px rgba(255,255,255,.9),inset 0 -2px 6px rgba(0,0,0,.1)`,
+    display:"flex", alignItems:"center", justifyContent:"center",
+  });
 
   return (
-    <div 
-      className="min-h-screen bg-[#000] text-white font-sans selection:bg-white selection:text-black overflow-x-hidden relative cursor-none"
-      onMouseMove={handleInteraction}
-      onMouseDown={handleInteraction}
-    >
-      <div 
-        className="fixed inset-0 opacity-20 pointer-events-none grayscale bg-cover bg-center"
-        style={{ backgroundImage: "url('bg.jpg')" }}
-      />
-
-      {/* RIPPLE & BUBBLE LAYER */}
-      <div className="fixed inset-0 pointer-events-none z-[1000]">
-        {ripples.map(r => (
-          <div 
-            key={r.id}
-            className="absolute rounded-full border border-white/20 animate-[ripple_1s_ease-out_forwards]"
-            style={{ left: r.x - 50, top: r.y - 50, width: 100, height: 100 }}
-          />
-        ))}
-        {bubbles.map(b => (
-          <div 
-            key={b.id}
-            className="absolute rounded-full border border-white/40 animate-[bubble_2s_ease-out_forwards] backdrop-blur-[1px]"
-            style={{ 
-              left: b.x, 
-              top: b.y, 
-              width: b.size, 
-              height: b.size,
-              animationDelay: `${b.delay}s`
-            }}
-          />
-        ))}
-      </div>
-
-      {/* CUSTOM CURSOR */}
-      <div 
-        className="fixed z-[9999] pointer-events-none transition-transform duration-75 ease-out flex items-center justify-center"
-        style={{ left: mousePos.x, top: mousePos.y, transform: 'translate(-50%, -50%)' }}
-      >
-        <div className="w-8 h-8 rounded-full border border-white/30 flex items-center justify-center">
-          <div className="w-1 h-1 bg-white rounded-full animate-ping" />
+    <div style={{width:180,height:180,perspective:800,cursor:"grab",userSelect:"none"}}
+      onPointerDown={pd} onPointerMove={pm} onPointerUp={pu} onPointerLeave={pu}>
+      <div ref={coinRef} style={{width:"100%",height:"100%",transformStyle:"preserve-3d",position:"relative"}}>
+        <div style={face(false)}>
+          <img src="logo.png" alt="S" style={{width:110,height:110,objectFit:"contain",borderRadius:"50%"}} />
+        </div>
+        <div style={face(true)}>
+          <span style={{fontFamily:"'DM Serif Display',serif",fontSize:34,color:"#888",fontStyle:"italic"}}>simple.</span>
         </div>
       </div>
-
-      <nav className="relative z-[1500] p-10 flex justify-between items-center max-w-[1600px] mx-auto">
-        <div onClick={() => setView('home')} className="flex items-center gap-4 cursor-pointer group">
-          <img src="logo.png" alt="Whitify" className="h-10 w-auto brightness-200 contrast-150 transition-all group-hover:rotate-12" />
-          <span className="font-black text-3xl tracking-tighter uppercase italic group-hover:tracking-widest transition-all">Whitify</span>
-        </div>
-        <div className="flex gap-12 text-[10px] font-black uppercase tracking-[0.5em] text-white/30">
-          {['home', 'gallery', 'about'].map(v => (
-            <span 
-              key={v}
-              onClick={() => setView(v)} 
-              className={`cursor-pointer transition-all hover:text-white relative ${view === v ? 'text-white' : ''}`}
-            >
-              {v === 'about' ? 'The Cult' : v === 'gallery' ? 'Pure Gallery' : 'Entry'}
-              {view === v && <div className="absolute -bottom-2 left-0 w-full h-px bg-white animate-pulse" />}
-            </span>
-          ))}
-        </div>
-      </nav>
-
-      <main className="relative z-[1400] pb-32">
-        {view === 'home' && (
-          <HomeView 
-            previewUrl={previewUrl} 
-            resultImage={resultImage} 
-            status={status} 
-            startWhitifying={startWhitifying}
-            triggerUpload={triggerUpload}
-          />
-        )}
-        {view === 'gallery' && <GalleryView />}
-        {view === 'about' && <AboutView />}
-        <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
-      </main>
-
-      <footer className="py-20 flex flex-col items-center gap-10 opacity-30 relative z-[1400]">
-        <div className="flex gap-12 animate-[ticker_40s_linear_infinite] whitespace-nowrap text-[9px] font-black uppercase tracking-[1em]">
-          <span>{Array(10).fill("JOIN THE POD // RETURN TO WHITE // BORN OF THE WHALE").join(" // ")}</span>
-        </div>
-      </footer>
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;800&family=Playfair+Display:ital,wght@1,400;1,900&display=swap');
-        
-        body {
-          font-family: 'Plus Jakarta Sans', sans-serif;
-          background-color: #000;
-          overflow-x: hidden;
-        }
-
-        h1, h2, h3, .font-serif {
-          font-family: 'Playfair Display', serif;
-        }
-
-        @keyframes ripple {
-          0% { transform: scale(0.5); opacity: 1; }
-          100% { transform: scale(4); opacity: 0; }
-        }
-
-        @keyframes bubble {
-          0% { transform: translateY(0) scale(1); opacity: 0; }
-          20% { opacity: 0.6; }
-          100% { transform: translateY(-300px) scale(0.5); opacity: 0; }
-        }
-
-        @keyframes breach {
-          0% { transform: translateY(100px) scale(0.8); filter: blur(20px) brightness(5); }
-          100% { transform: translateY(0) scale(1); filter: blur(0) brightness(1); }
-        }
-
-        @keyframes ticker {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-
-        ::-webkit-scrollbar { width: 0px; }
-      `}} />
     </div>
   );
-};
+}
 
-export default App;
+// ── Typewriter ───────────────────────────────────────────────────────────────
+const WORDS = [
+  "Buy. Hold. Win.",
+  "No roadmap. Just results.",
+  "The idea is the product.",
+  "Complexity is fear. This is freedom.",
+  "The simplest trade you'll ever make.",
+];
+function Typewriter() {
+  const [txt, setTxt] = useState(""); const [wi, setWi] = useState(0);
+  const [ci, setCi] = useState(0); const [del, setDel] = useState(false);
+  useEffect(() => {
+    const w = WORDS[wi], t = setTimeout(() => {
+      if (!del && ci < w.length) setCi(c=>c+1);
+      else if (!del && ci===w.length) setDel(true);
+      else if (del && ci > 0) setCi(c=>c-1);
+      else { setDel(false); setWi(i=>(i+1)%WORDS.length); }
+    }, del ? 40 : 80);
+    return () => clearTimeout(t);
+  }, [ci, del, wi]);
+  useEffect(() => setTxt(WORDS[wi].slice(0,ci)), [ci,wi]);
+  return <span>{txt}<span style={{display:"inline-block",width:2,height:"0.85em",background:"#0e0e0e",marginLeft:2,verticalAlign:"middle",animation:"blink 1s step-end infinite"}} /></span>;
+}
+
+// ── Live stat fetcher ────────────────────────────────────────────────────────
+function useLiveStats() {
+  const [stats, setStats] = useState({ holders: null, price: null, mcap: null });
+  const [status, setStatus] = useState("loading"); // loading | ok | error
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch(`https://data.solanatracker.io/tokens/${CA}`, {
+          headers: { "x-api-key": API_KEY },
+        });
+        if (!res.ok) throw new Error(`${res.status}`);
+        const d = await res.json();
+        setStats({
+          holders: d.holders ?? null,
+          price:   d.price?.usd ?? d.pools?.[0]?.price?.usd ?? null,
+          mcap:    d.marketCap?.usd ?? d.pools?.[0]?.marketCap?.usd ?? null,
+        });
+        setStatus("ok");
+      } catch (e) {
+        console.warn("Stats fetch failed:", e.message);
+        setStatus("error");
+      }
+    };
+    fetchStats();
+    const interval = setInterval(fetchStats, 60_000); // refresh every 60s
+    return () => clearInterval(interval);
+  }, []);
+
+  return { stats, status };
+}
+
+// ── Animated number ──────────────────────────────────────────────────────────
+function AnimNum({ value, decimals = 0, prefix = "", suffix = "" }) {
+  const [display, setDisplay] = useState(0);
+  const prev = useRef(0);
+  useEffect(() => {
+    if (value === null) return;
+    const from = prev.current, to = value, start = performance.now();
+    const dur = 900;
+    const tick = (now) => {
+      const p = Math.min((now - start) / dur, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      setDisplay(from + (to - from) * ease);
+      if (p < 1) requestAnimationFrame(tick);
+      else prev.current = to;
+    };
+    requestAnimationFrame(tick);
+  }, [value]);
+  if (value === null) return <span>—</span>;
+  return <span>{prefix}{display.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}{suffix}</span>;
+}
+
+// ── Stat card ────────────────────────────────────────────────────────────────
+function StatCard({ label, value, prefix="", suffix="", decimals=0, pulse }) {
+  return (
+    <div style={{textAlign:"center", position:"relative"}}>
+      {pulse && (
+        <span style={{
+          position:"absolute", top:4, right:-8, width:6, height:6, borderRadius:"50%",
+          background:"#3ecf8e", display:"inline-block",
+          boxShadow:"0 0 0 0 rgba(62,207,142,.4)",
+          animation:"live-pulse 2s ease infinite",
+        }} />
+      )}
+      <div style={{
+        fontFamily:"'DM Serif Display',serif",
+        fontSize:"clamp(28px,5vw,46px)",
+        letterSpacing:"-0.02em", lineHeight:1, color:"#0e0e0e",
+      }}>
+        <AnimNum value={value} prefix={prefix} suffix={suffix} decimals={decimals} />
+      </div>
+      <div style={{
+        fontFamily:"'DM Mono',monospace", fontSize:9,
+        letterSpacing:"0.22em", textTransform:"uppercase", color:"#bbb", marginTop:8,
+      }}>{label}</div>
+    </div>
+  );
+}
+
+// ── Copy CA ──────────────────────────────────────────────────────────────────
+function CopyCA() {
+  const [state, setState] = useState("idle");
+  const mag = useMagnetic(.18);
+  const copy = () => { navigator.clipboard.writeText(CA); setState("copied"); setTimeout(()=>setState("idle"),2000); };
+  const copied = state === "copied";
+  return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
+      <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:"0.25em",textTransform:"uppercase",color:"#aaa"}}>Contract Address</span>
+      <button ref={mag.ref} onMouseMove={mag.onMouseMove} onMouseLeave={mag.onMouseLeave} onClick={copy}
+        style={{
+          all:"unset", display:"flex", alignItems:"center", gap:14,
+          background: copied ? "#0e0e0e" : "rgba(0,0,0,0.04)",
+          border:`1px solid ${copied?"#0e0e0e":"rgba(0,0,0,0.1)"}`,
+          borderRadius:6, padding:"14px 20px", cursor:"pointer",
+          transition:"all .3s cubic-bezier(.22,1,.36,1)",
+        }}>
+        <span style={{
+          fontFamily:"'DM Mono',monospace", fontSize:11, letterSpacing:"0.04em", fontWeight:300,
+          color: copied ? "#f9f7f4" : "#0e0e0e", transition:"color .3s",
+          wordBreak:"break-all", maxWidth:300,
+        }}>
+          {copied ? "✓  copied to clipboard" : CA}
+        </span>
+        <span style={{color:copied?"#f9f7f4":"#aaa", transition:"color .3s", flexShrink:0}}>
+          {copied
+            ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+            : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>}
+        </span>
+      </button>
+    </div>
+  );
+}
+
+// ── Link ─────────────────────────────────────────────────────────────────────
+function MagLink({ href, children }) {
+  const mag = useMagnetic(.28);
+  const [hov, setHov] = useState(false);
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer"
+      ref={mag.ref} onMouseMove={mag.onMouseMove}
+      onMouseLeave={e=>{mag.onMouseLeave(e);setHov(false);}}
+      onMouseEnter={()=>setHov(true)}
+      style={{
+        display:"inline-flex", alignItems:"center", gap:8,
+        fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:"0.2em",
+        textTransform:"uppercase", color:hov?"#0e0e0e":"#aaa",
+        textDecoration:"none", transition:"color .2s", padding:"8px 0",
+      }}>
+      {children}
+    </a>
+  );
+}
+
+// ── Marquee ──────────────────────────────────────────────────────────────────
+function Marquee() {
+  const txt = "SIMPLE COIN · BUY · HOLD · REPEAT · THE SIMPLEST IDEA IS THE STRONGEST ONE · ";
+  return (
+    <div style={{
+      position:"fixed", bottom:0, left:0, right:0, zIndex:10,
+      overflow:"hidden", borderTop:"1px solid rgba(0,0,0,0.07)",
+      background:"rgba(249,247,244,0.96)", backdropFilter:"blur(8px)", padding:"10px 0",
+    }}>
+      <div style={{display:"flex", whiteSpace:"nowrap", animation:"marquee 24s linear infinite"}}>
+        {[...Array(4)].map((_,i) => (
+          <span key={i} style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.22em",textTransform:"uppercase",color:"#bbb"}}>{txt}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── App ──────────────────────────────────────────────────────────────────────
+export default function App() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setMounted(true), 80); return () => clearTimeout(t); }, []);
+  const { stats, status } = useLiveStats();
+
+  const fi = (d) => ({
+    opacity: mounted ? 1 : 0,
+    transform: mounted ? "translateY(0)" : "translateY(28px)",
+    transition: `opacity .9s cubic-bezier(.22,1,.36,1) ${d}s, transform .9s cubic-bezier(.22,1,.36,1) ${d}s`,
+  });
+
+  const fmtMcap = (v) => {
+    if (v === null) return null;
+    if (v >= 1_000_000) return { value: v / 1_000_000, suffix: "M", decimals: 2, prefix: "$" };
+    if (v >= 1_000)     return { value: v / 1_000,     suffix: "K", decimals: 1, prefix: "$" };
+    return { value: v, suffix: "", decimals: 0, prefix: "$" };
+  };
+  const mcapFmt = fmtMcap(stats.mcap);
+
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap');
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        html{scroll-behavior:smooth}
+        body{background:#f9f7f4;color:#0e0e0e;font-family:'DM Mono',monospace;overscroll-behavior:none}
+        ::-webkit-scrollbar{width:3px}
+        ::-webkit-scrollbar-thumb{background:#ddd;border-radius:2px}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+        @keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+        @keyframes spin-slow{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes pulse-ring{0%{transform:scale(.9);opacity:.5}100%{transform:scale(1.7);opacity:0}}
+        @keyframes live-pulse{0%{box-shadow:0 0 0 0 rgba(62,207,142,.5)}70%{box-shadow:0 0 0 6px rgba(62,207,142,0)}100%{box-shadow:0 0 0 0 rgba(62,207,142,0)}}
+        @media(max-width:600px){.mgrid{grid-template-columns:1fr!important}.sgrid{gap:20px!important}}
+      `}</style>
+
+      <Particles />
+
+      {/* corner marks */}
+      {["tl","tr","bl","br"].map(p => (
+        <div key={p} style={{
+          position:"fixed", zIndex:5, width:18, height:18,
+          top:p[0]==="t"?20:"auto", bottom:p[0]==="b"?20:"auto",
+          left:p[1]==="l"?20:"auto", right:p[1]==="r"?20:"auto",
+          borderTop:p[0]==="t"?"1px solid rgba(0,0,0,.15)":"none",
+          borderBottom:p[0]==="b"?"1px solid rgba(0,0,0,.15)":"none",
+          borderLeft:p[1]==="l"?"1px solid rgba(0,0,0,.15)":"none",
+          borderRight:p[1]==="r"?"1px solid rgba(0,0,0,.15)":"none",
+        }}/>
+      ))}
+
+      {/* ── HERO ── */}
+      <section style={{
+        minHeight:"100vh", display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"center",
+        padding:"80px 24px 140px", position:"relative", zIndex:1,
+      }}>
+        {/* Coin + pulse rings */}
+        <div style={{...fi(.05), position:"relative", marginBottom:52}}>
+          {[1,2].map(i=>(
+            <div key={i} style={{
+              position:"absolute", inset:-24*i, borderRadius:"50%",
+              border:"1px solid rgba(0,0,0,.07)",
+              animation:`pulse-ring ${2.2+i*.9}s cubic-bezier(.22,1,.36,1) ${i*.5}s infinite`,
+              pointerEvents:"none",
+            }}/>
+          ))}
+          <Coin3D />
+        </div>
+
+        {/* eyebrow */}
+        <div style={{...fi(.15),fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:"0.32em",textTransform:"uppercase",color:"#bbb",marginBottom:22}}>
+          Solana · 2026
+        </div>
+
+        {/* headline */}
+        <h1 style={{...fi(.25),fontFamily:"'DM Serif Display',serif",fontSize:"clamp(60px,13vw,116px)",lineHeight:.88,letterSpacing:"-0.03em",textAlign:"center",color:"#0e0e0e",marginBottom:32}}>
+          Simple<br/><em style={{color:"#ccc"}}>is enough.</em>
+        </h1>
+
+        {/* typewriter */}
+        <div style={{...fi(.35),fontFamily:"'DM Serif Display',serif",fontSize:"clamp(17px,3vw,25px)",fontStyle:"italic",color:"#999",textAlign:"center",marginBottom:56,minHeight:"1.4em"}}>
+          <Typewriter/>
+        </div>
+
+        {/* divider */}
+        <div style={{...fi(.4),width:1,height:52,background:"linear-gradient(to bottom,transparent,rgba(0,0,0,.15),transparent)",marginBottom:52}}/>
+
+        {/* CA */}
+        <div style={{...fi(.5),marginBottom:48}}><CopyCA/></div>
+
+        {/* links */}
+        <div style={{...fi(.6),display:"flex",gap:40,alignItems:"center"}}>
+          <MagLink href={X_URL}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622Zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            Twitter
+          </MagLink>
+          <div style={{width:1,height:20,background:"rgba(0,0,0,.1)"}}/>
+          <MagLink href={COMM_URL}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Community
+          </MagLink>
+        </div>
+
+        {/* scroll hint */}
+        <div style={{...fi(.85),position:"absolute",bottom:80,display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+          <span style={{fontFamily:"'DM Mono',monospace",fontSize:8,letterSpacing:"0.25em",textTransform:"uppercase",color:"#ccc"}}>scroll</span>
+          <div style={{width:1,height:32,background:"linear-gradient(to bottom,#ccc,transparent)"}}/>
+        </div>
+      </section>
+
+      {/* ── LIVE STATS ── */}
+      <section style={{
+        padding:"80px 24px", position:"relative", zIndex:1,
+        borderTop:"1px solid rgba(0,0,0,0.06)",
+        display:"flex", flexDirection:"column", alignItems:"center",
+      }}>
+        {/* live badge */}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:48}}>
+          <span style={{width:6,height:6,borderRadius:"50%",background:"#3ecf8e",display:"inline-block",animation:"live-pulse 2s ease infinite"}}/>
+          <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:"0.3em",textTransform:"uppercase",color:"#aaa"}}>
+            {status === "loading" ? "Fetching on-chain data..." : status === "error" ? "Add API key to load live data" : "Live on-chain data"}
+          </span>
+        </div>
+
+        <div className="sgrid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:56,maxWidth:680,width:"100%"}}>
+          <StatCard
+            label="Holders"
+            value={stats.holders}
+            pulse={status==="ok"}
+          />
+          <StatCard
+            label="Price"
+            value={stats.price}
+            prefix="$"
+            decimals={stats.price && stats.price < 0.001 ? 8 : stats.price && stats.price < 1 ? 6 : 4}
+            pulse={status==="ok"}
+          />
+          {mcapFmt
+            ? <StatCard label="Market Cap" value={mcapFmt.value} prefix={mcapFmt.prefix} suffix={mcapFmt.suffix} decimals={mcapFmt.decimals} pulse={status==="ok"} />
+            : <StatCard label="Market Cap" value={null} pulse={false} />
+          }
+        </div>
+
+        <div style={{marginTop:40,fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:"0.15em",color:"#ddd",textAlign:"center"}}>
+          Updates every 60s · Powered by SolanaTracker
+        </div>
+      </section>
+
+      {/* ── MANIFESTO ── */}
+      <section style={{
+        minHeight:"80vh", display:"flex", alignItems:"center", justifyContent:"center",
+        padding:"100px 24px", position:"relative", zIndex:1,
+        borderTop:"1px solid rgba(0,0,0,0.06)",
+      }}>
+        <div style={{maxWidth:700,width:"100%"}}>
+          <div style={{fontFamily:"'DM Serif Display',serif",fontSize:"clamp(34px,7vw,68px)",lineHeight:1.06,letterSpacing:"-0.025em",color:"#0e0e0e",marginBottom:56}}>
+            "The most powerful ideas<br/>
+            <span style={{color:"#ccc"}}>need no explanation."</span>
+          </div>
+
+          <div className="mgrid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:32,marginBottom:0}}>
+            {[
+              {n:"01",t:"No Whitepaper",b:"You already understand it. That's the point."},
+              {n:"02",t:"No Roadmap",b:"The destination is simplicity. You're already there."},
+              {n:"03",t:"No Utility",b:"Sometimes a thing's value is that it simply exists."},
+              {n:"04",t:"No Complexity",b:"Buy. Hold. Let the idea do the work."},
+            ].map(({n,t,b}) => (
+              <div key={n} style={{borderTop:"1px solid rgba(0,0,0,0.08)",paddingTop:24}}>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:"0.2em",color:"#ccc",marginBottom:12}}>{n}</div>
+                <div style={{fontFamily:"'DM Serif Display',serif",fontSize:20,marginBottom:10,color:"#0e0e0e"}}>{t}</div>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,fontWeight:300,lineHeight:1.7,color:"#888"}}>{b}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FINAL CTA ── */}
+      <section style={{
+        minHeight:"60vh", display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"center",
+        padding:"100px 24px 140px", position:"relative", zIndex:1,
+        borderTop:"1px solid rgba(0,0,0,0.06)",
+      }}>
+        <div style={{position:"absolute",opacity:.04,width:400,height:400,animation:"spin-slow 40s linear infinite",pointerEvents:"none"}}>
+          <img src="logo.png" alt="" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
+        </div>
+        <div style={{fontFamily:"'DM Serif Display',serif",fontSize:"clamp(48px,10vw,96px)",lineHeight:.9,letterSpacing:"-0.03em",textAlign:"center",marginBottom:40,position:"relative"}}>
+          Are you<br/><em style={{color:"#ccc"}}>in?</em>
+        </div>
+        <div style={{marginBottom:52,position:"relative"}}><CopyCA/></div>
+        <div style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:"0.18em",textTransform:"uppercase",color:"#ddd",textAlign:"center"}}>
+          Simple Coin · Solana · 2026 · Keep it simple
+        </div>
+      </section>
+
+      <Marquee/>
+    </>
+  );
+}
